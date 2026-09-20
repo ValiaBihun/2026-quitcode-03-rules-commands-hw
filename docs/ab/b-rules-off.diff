@@ -1,0 +1,67 @@
+diff --git a/app/src/core/types.ts b/app/src/core/types.ts
+index 72303a0..4b39e6e 100644
+--- a/app/src/core/types.ts
++++ b/app/src/core/types.ts
+@@ -9,6 +9,8 @@ export interface Lead {
+   phone?: string;
+   source: "website" | "instagram" | "referral";
+   budgetUsd?: number;
++  /** UTM-кампанія з форми сайту; у старих лідів її немає. */
++  utmCampaign?: string;
+   /** ISO-8601, UTC. */
+   createdAt: string;
+ }
+diff --git a/app/src/integrations/sheets-append.test.ts b/app/src/integrations/sheets-append.test.ts
+index 12e42ce..823882a 100644
+--- a/app/src/integrations/sheets-append.test.ts
++++ b/app/src/integrations/sheets-append.test.ts
+@@ -32,7 +32,31 @@ describe("sheets-append", () => {
+     const [url, init] = fetchMock.mock.calls[0]!;
+     expect(url).toBe("https://sheets.example.test/append?token=fake-sheets-token-0000");
+     expect(JSON.parse(String(init?.body))).toEqual({
+-      values: [["2026-09-10T09:30:00.000Z", "Андрій Тестовий", "andrii@studio-nova.example.test", "", "instagram"]],
++      values: [["2026-09-10T09:30:00.000Z", "Андрій Тестовий", "andrii@studio-nova.example.test", "", "instagram", ""]],
++    });
++  });
++
++  it("пише кампанію останньою колонкою рядка", async () => {
++    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response('{"status":"ok"}', { status: 200 }));
++    vi.stubGlobal("fetch", fetchMock);
++
++    await expect(sheetsAppend.send({ ...lead, utmCampaign: "autumn-sale-2026" })).resolves.toEqual({
++      ok: true,
++      value: undefined,
++    });
++
++    const [, init] = fetchMock.mock.calls[0]!;
++    expect(JSON.parse(String(init?.body))).toEqual({
++      values: [
++        [
++          "2026-09-10T09:30:00.000Z",
++          "Андрій Тестовий",
++          "andrii@studio-nova.example.test",
++          "",
++          "instagram",
++          "autumn-sale-2026",
++        ],
++      ],
+     });
+   });
+ 
+diff --git a/app/src/integrations/sheets-append.ts b/app/src/integrations/sheets-append.ts
+index 36b0145..7ec98e0 100644
+--- a/app/src/integrations/sheets-append.ts
++++ b/app/src/integrations/sheets-append.ts
+@@ -26,8 +26,11 @@ const sheetsAppend: Integration = {
+     if (!token.ok) return token;
+ 
+     const url = `${webhookUrl.value}?token=${token.value}`;
++    // Порядок колонок фіксований: кампанія — остання, щоб не зсувати наявні рядки.
+     const body = {
+-      values: [[lead.createdAt, lead.name, lead.email, lead.phone ?? "", lead.source]],
++      values: [
++        [lead.createdAt, lead.name, lead.email, lead.phone ?? "", lead.source, lead.utmCampaign ?? ""],
++      ],
+     };
+ 
+     const response = await postJson(url, body);
