@@ -16,7 +16,7 @@ Vitest, **нуль runtime-залежностей**.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run check:rules` | статична перевірка конвенцій проєкту |
 
-Поточна лінія: **44 тести зелені**, `check:rules` → **TOTAL: 0**.
+Поточна лінія: **49 тестів зелені**, `check:rules` → **TOTAL: 0**.
 Нових порушень після твоєї задачі бути не повинно.
 
 ⚠️ `TOTAL: 0` не означає «дефектів немає». `loadState` у `src/sync/state.ts` досі
