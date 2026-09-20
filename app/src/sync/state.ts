@@ -10,14 +10,39 @@ export interface SyncState {
 
 const INITIAL_STATE: SyncState = { lastSyncedAt: "1970-01-01T00:00:00.000Z" };
 
-// Курсор має бути саме ISO-8601 UTC — у тій формі, яку пише saveState()
-// (`Date.prototype.toISOString`). Перевірки `isString` тут замало: порожній рядок
-// її проходить, а далі `lead.createdAt > ""` істинне для будь-якого ліда, тобто
-// структурно «справний» файл стану дає той самий шторм дублікатів, що й побитий.
-const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+// Курсор має бути справжньою міткою часу ISO-8601 UTC, і перевіряти це треба на
+// трьох рівнях — кожен пропускає значення, які ламають синхронізацію:
+//
+//   isString   — пропускає "", а далі `lead.createdAt > ""` істинне для будь-якого
+//                ліда, тобто розсилка всіх лідів заново;
+//   ISO_UTC    — пропускає календарно неможливе: "0000-00-00T00:00:00Z"
+//                лексикографічно менше за будь-яку реальну дату, той самий ефект;
+//   Date.parse — пропускає "2026-02-30T00:00:00Z", мовчки «перевертаючи» його на
+//                2 березня, тобто курсор поїде на два дні вперед.
+//
+// Тому після форми звіряємо компоненти з тим, що реально розібрав Date.
+const ISO_UTC = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?Z$/;
+
+function isIsoUtcTimestamp(value: string): boolean {
+  const parts = ISO_UTC.exec(value);
+  if (parts === null) return false;
+
+  const epochMs = Date.parse(value);
+  if (Number.isNaN(epochMs)) return false;
+
+  const date = new Date(epochMs);
+  return (
+    date.getUTCFullYear() === Number(parts[1]) &&
+    date.getUTCMonth() + 1 === Number(parts[2]) &&
+    date.getUTCDate() === Number(parts[3]) &&
+    date.getUTCHours() === Number(parts[4]) &&
+    date.getUTCMinutes() === Number(parts[5]) &&
+    date.getUTCSeconds() === Number(parts[6])
+  );
+}
 
 const isSyncState = (value: unknown): value is SyncState =>
-  isRecord(value) && isString(value.lastSyncedAt) && ISO_UTC.test(value.lastSyncedAt);
+  isRecord(value) && isString(value.lastSyncedAt) && isIsoUtcTimestamp(value.lastSyncedAt);
 
 // ⚠️ ВІДОМИЙ ДЕФЕКТ, НЕ ВИПРАВЛЕНИЙ ТУТ.
 // Повернення INITIAL_STATE на побитому файлі стану — це корінна причина нічного
