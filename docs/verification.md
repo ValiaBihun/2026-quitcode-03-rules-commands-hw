@@ -179,9 +179,13 @@
   `slack-notify.ts`, і токен у URL більше не потрапляє в журнал — `log.redact()`
   маскує `?token=`.
 
-### `/generate-integration telegram-notify`
+### `/generate-integration` — два прогони
 
-- Виклик: `/generate-integration telegram-notify` (месенджер — типовий сервіс агенції)
+Команду запускали двічі, на сервісах **різного типу**. Це не дублювання: крок 4
+команди («вирішу, що це за система») веде до протилежних рішень щодо даних ліда,
+і два прогони показують, що правило застосовується вибірково, а не механічно.
+
+#### Прогін 2.1 — `/generate-integration telegram-notify` (за текстом команди)
 - Які файли створено:
   - `app/src/integrations/telegram-notify.ts` — `Integration` з
     `name: "telegram-notify"`, `requiredEnv: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]`;
@@ -195,6 +199,37 @@
 - `npm run check:rules`: `TOTAL: 1` — **нових порушень немає** (лишилось те саме
   `state.ts:14`, яке команда `analyze-error` свідомо не чіпала).
 - `npm run typecheck`: без помилок. `package.json` не змінено, `npm install` не запускався.
+
+#### Прогін 2.2 — `/generate-integration hubspot-sync` (**справжній виклик через `/`**)
+
+- Виклик: `/generate-integration hubspot-sync`, 20.09.2026, у сесії, де команда
+  вже зареєстрована.
+- **Чи підставився `$ARGUMENTS`: так** — тіло команди прийшло з розкритим
+  рядком `**Ціль:** hubspot-sync`.
+- Які файли створено:
+  - `app/src/integrations/hubspot-sync.ts` — `Integration` з
+    `name: "hubspot-sync"`, `requiredEnv: ["HUBSPOT_TOKEN"]`;
+  - `app/src/integrations/hubspot-sync.test.ts` — 4 тести;
+  - один рядок у `app/src/integrations/index.ts`.
+- **Мінімізація даних — протилежне рішення до прогону 2.1:** HubSpot це CRM,
+  тобто **система обліку**, тому в запит іде повний лід — `email`, `firstname`,
+  `phone`, `lead_source`, `budget_usd`. Конвенція відрізає email і телефон лише
+  для сповіщень; для систем обліку вона їх дозволяє. Порівняння двох прогонів і
+  є доказом, що команда змушує зробити цей вибір явно, а не скопіювати сусідній
+  модуль.
+- **Робота з секретом:** токен іде заголовком `Authorization: Bearer …` через
+  `PostOptions.headers`, а не в query. У `sheets-append` він у URL і його рятує
+  `log.redact()`; тут маскувати нема чого — у журнал токен не потрапляє взагалі.
+  Тест перевіряє сам заголовок.
+- `npm test`: **22 → 26 passed** (7 → 8 файлів).
+- `npm run typecheck`: без помилок.
+- `npm run check:rules`: `TOTAL: 1` → **`TOTAL: 1`** — не виріс.
+- Acceptance criteria — усі шість виконані, зокрема перевірені окремо:
+  `git status --short` показав рівно три зміни; `grep` по новому файлу на
+  `fetch` / `process.env` / `JSON.parse` / `console.*` / `any` — порожній;
+  `git diff` по `package.json` і `package-lock.json` — без змін.
+- **Stop:** `app/src/core/**` не чіпали — контракт `Integration` і тип `Lead`
+  узято як є, усе потрібне в них знайшлось; `npm install` не запускався.
 
 ---
 
@@ -233,8 +268,14 @@ Claude Code реєструє `.claude/rules/`, `.claude/commands/` і `.claude/s
 | 2 | Питання агентові про правила в контексті, без відкриття файлів | ✅ назвав `do-not-touch` + база; `architecture`/`conventions` за `paths` не завантажені |
 | 3 | `/analyze-error materials/error-log.txt` через `/` — чи підставився `$ARGUMENTS` | ✅ підставився; прогін виконано через `/`, Stop спрацював |
 | 4 | Чи підтягуються `architecture`/`conventions` за `paths` під час роботи з кодом | ✅ зайшли самі, щойно прочитано `app/src/sync/state.ts` |
-| 5 | «Додай коментар на початок `app/src/core/log.ts`» — чи блокує хук живцем | ⏳ перевірено лише вручну через stdin (exit 2) |
+| 5 | `/generate-integration hubspot-sync` через `/` — чи підставився `$ARGUMENTS` | ✅ підставився; прогін виконано через `/`, усі 6 AC зелені |
+| 6 | «Додай коментар на початок `app/src/core/log.ts`» — чи блокує хук живцем | ⏳ перевірено лише вручну через stdin (exit 2) |
 
-`/refactor` і `/generate-integration` через `/` не перезапускались: обидві вже
-застосовані до коду, і повторний прогін був би або no-op, або дублюванням
-інтеграції. Їхні числа нижче — з фактичних прогонів.
+**Що з `/refactor`.** Через `/` не перезапускався, і свідомо. `sheets-append.ts`
+уже конвенційний — прогін дав би «0 → 0, змінювати нічого». Єдиний файл, що
+лишився з порушенням, — `sync/state.ts`, але його виправлення **змінює поведінку**
+`loadState` (сигнатура стає `Result<SyncState>`), а Stop команди `refactor` це
+прямо забороняє; до того ж `analyze-error` зупинився саме там і чекає
+підтвердження людини. Числа прогону нижче перевіряються з git:
+`git show origin/main:app/src/integrations/sheets-append.ts` містить рівно сім
+збігів із шаблонами `check:rules`, у поточному файлі їх нуль.
