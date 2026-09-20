@@ -53,8 +53,10 @@ paths:
 ## Як перевірити
 
 - `cd app && npm run check:rules` → нулі в рядках `http-via-core`,
-  `env-via-config`, `json-via-parse`, `log-via-logger`, `no-any`, `no-new-deps`.
-  Базова лінія спадкового коду — `TOTAL: 8`; **нових** порушень бути не повинно.
+  `env-via-config`, `log-via-logger`, `no-any`, `no-new-deps`. Єдине відоме
+  спадкове порушення — `json-via-parse` у `src/sync/state.ts` (мовчазний дефолт
+  на побитому файлі стану, причина нічного інциденту). **Нових** порушень бути
+  не повинно: звіряй `TOTAL` до і після своєї зміни, а не з числом у цьому файлі.
 - `cd app && npm test` — зелений; `cd app && npm run typecheck` — без помилок.
 - Мінімізація даних: `grep -n "email\|phone" app/src/integrations/slack-notify.ts`
   → порожньо (перевірку для месенджерів роби так само).
