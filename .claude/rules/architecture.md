@@ -54,4 +54,5 @@ paths:
 - `cd app && npm run check:rules` → рядок `core-untouched   0`.
 - Нова інтеграція: `git status --short` показує рівно два нові файли
   (`<name>.ts`, `<name>.test.ts`) і зміну в `integrations/index.ts`.
-- `grep -rn "from \"../sync/" app/src/integrations/` → порожньо.
+- `grep -rnE "from ['\"]\.\./sync/" app/src/integrations/` → порожньо
+  (обидва стилі лапок; перевірка лише на `"` пропускає `from '../sync/run.js'`).
